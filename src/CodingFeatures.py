@@ -1,12 +1,12 @@
 
 class DNAFeatureExtraction:
     '''parent class for dna translation and feature initialization'''
-    def __init__(self, sequence_data, list_indices=None):
+    def __init__(self, sequence_data, chunk=True, list_indices=None):
         self.peptides = None # initialization for subsequent self-checking
         # accepts single 'master' sequence
         if isinstance(sequence_data, str):
             self.seq = sequence_data.upper()
-            self.fragments, self.frag_index = stop_delimited_fragments(self.seq)
+            self.fragments, self.frag_index = fragment_stop_delimited(self.seq)
         # or a pre-split list of fragments.  If no indicies provided, [0]*n used.
         elif isinstance(sequence_data, list):
             self.fragments = [seq.upper() for seq in sequence_data]
@@ -14,7 +14,10 @@ class DNAFeatureExtraction:
                 self.frag_index = list_indices
             else:    
                 self.frag_index = [0]*len(self.fragments)
-        
+        if chunk:
+            self.fragments, self.frag_index = fragment_windowed(zip(self.fragments, self.frag_index))
+            
+
     def decode_dna(self, lookup):
         '''translate dna sequence, compile derived AA features'''
         self.peptides = []
@@ -57,7 +60,7 @@ class DNAFeatureExtraction:
 # DNAFeatureExtraction accessory function
 import re
 from collections import defaultdict
-def stop_delimited_fragments(seq):
+def fragment_stop_delimited(seq):
     '''Find/Split all possible stop-delimited coding frames\naggregate to single list\nreturns (sequences, global indices)'''
     frames = [0,1,2] # frames
     stops_reg = re.compile('|'.join(['TAA','TAG','TGA'])) # define stops  
@@ -88,6 +91,14 @@ def stop_delimited_fragments(seq):
     fragments = [x for frame in elements.values() for x in frame]
     frag_index = [x for frame in indicies.values() for x in frame] # global index
     return fragments, frag_index
+    
+
+# DNAFeatureExtraction accessory function
+def fragment_windowed(seqs_idx, window=150, offset=60):
+    '''takes list of tuple(aa_sequence,index) and returns lists of windows & updated indicies'''
+    chunked = [(frag[idn:idn+window], idg+idn) for frag,idg in seqs_idx for idn in range((len(frag)-window)%offset, len(frag)-window+1, offset)]
+    windows, wind_index = list(zip(*chunked))
+    return list(windows), list(wind_index)
 
 
 import numpy as np
@@ -140,3 +151,77 @@ def extrude(y,k=4):
     x = [(z+.5)**k for z in y]
     xs = [z/sum(x) for z in x]
     return xs
+
+
+## ACCESSORY STATPACK FUCTIONS
+def zerocross_pack(X): # intended for hydrophob array
+    '''Takes 1d array of numerical values and returns a (5,) np.array of distribution features'''
+    cross = []
+    for k in range(1,len(X)):
+        if X[k]*X[k-1]<0:
+            cross.append(k)
+    t = np.ediff1d(cross)
+    tm = t.mean()
+    tsd = t.std()
+    tp1 = np.percentile(t,5)
+    tp2 = np.percentile(t,95)
+    return np.hstack([len(cross)/len(X),tm,tsd,tp1,tp2])
+
+    
+def codon_bias_rms(X, lookup, select='FULL'):
+    '''Takes a DNA sequence and calculates the RMS[or 0] of codon bias for ALL(1,), [SELECT](1,), or FULL(21,) amino acids'''
+    AAs = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y']
+    x = [(lookup[X[i:i+3]]['aa'],lookup[X[i:i+3]]['f_aa']-lookup[X[i:i+3]]['r_aa']) for i in range(0,len(X),3)]
+    if select=='ALL':
+        return (sum([z[1]**2 for z in x])/len(x))**.5
+    elif select=='FULL':
+        df = pd.DataFrame(x)
+        values = df[1].groupby(df[0]).apply(lambda x: (sum(x**2)/len(x))**.5)
+        return np.hstack([(sum([z[1]**2 for z in test])/len(test))**.5, values[AAs].fillna(0)])
+    else:
+        tmp = [z[1]**2 for z in x if z[0]==select]
+        return (sum(tmp)/len(tmp)) if len(tmp)>0 else 0.
+
+
+def aa_pack(X, AAs): # distribution of individual amino acids
+    '''Takes AA sequences and returns a (100,) np.array of distribution features for all AAs (present or not)'''
+    L = len(X)
+    result = []
+    for aa in AAs:
+        aas = [pos for pos,char in enumerate(a) if char==aa]
+        l = len(aas)
+        if l>2:
+            t = np.ediff1d(aas)
+            tm = t.mean()
+            tsd = t.std()
+            tp1 = np.percentile(t,5)
+            tp2 = np.percentile(t,95)
+            return np.hstack([l/L,tm,tsd,tp1,tp2])
+        else:
+            return np.hstack([l/L,0,0,0,0])
+
+
+def statpack1(X):
+    '''Takes numerical array and returns a (8,) np.array of distribution features'''
+    m = X.mean()
+    sd = X.std()
+    p1 = np.percentile(X,5)
+    p2 = np.percentile(X,95)
+    t = np.ediff1d(X)
+    tm = t.mean()
+    tsd = t.std()
+    tp1 = np.percentile(t,5)
+    tp2 = np.percentile(t,95)
+    return np.hstack([m,sd,p1,p2,tm,tsd,tp1,tp2])
+    
+
+def statpack2(X):
+    '''Takes 2d numerical array and returns a (64,) np.array of distribution features'''
+    arr = {}
+    for z in [0,1]:
+        m = statpack1(X.mean(axis=z))
+        sd = statpack1(X.std(axis=z))
+        p1 = statpack1(np.percentile(X,5,axis=z))
+        p2 = statpack1(np.percentile(X,95,axis=z))
+        arr[z] = np.hstack([m,sd,p1,p2])
+    return np.hstack(arr.values())
