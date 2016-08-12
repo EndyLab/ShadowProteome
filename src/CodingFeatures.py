@@ -172,6 +172,7 @@ def codon_bias_rms(X, lookup, select='FULL'):
     '''Takes a DNA sequence and calculates the RMS[or 0] of codon bias for ALL(1,), [SELECT](1,), or FULL(21,) amino acids'''
     AAs = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y']
     x = [(lookup[X[i:i+3]]['aa'],lookup[X[i:i+3]]['f_aa']-lookup[X[i:i+3]]['r_aa']) for i in range(0,len(X),3)]
+    
     if select=='ALL':
         return (sum([z[1]**2 for z in x])/len(x))**.5
     elif select=='FULL':
@@ -213,7 +214,7 @@ def statpack1(X):
     tp1 = np.percentile(t,5)
     tp2 = np.percentile(t,95)
     return np.hstack([m,sd,p1,p2,tm,tsd,tp1,tp2])
-    
+
 
 def statpack2(X):
     '''Takes 2d numerical array and returns a (64,) np.array of distribution features'''
