@@ -1,13 +1,15 @@
 
-class DNAFeatureExtraction:
+class DNAAttributeConstruction:
     '''parent class for dna translation and feature initialization'''
-    def __init__(self, sequence_data, chunk=True, list_indices=None):
+    def __init__(self, sequence_data, labels=None,  list_indices=None, chunk=True):
+        '''Takes whole string{-id, -lab} or list(strings){+/- id, +lab}.  generates frags, frag_id, labels'''
         self.peptides = None # initialization for subsequent self-checking
         # accepts single 'master' sequence
         if isinstance(sequence_data, str):
             self.seq = sequence_data.upper()
             self.fragments, self.frag_index = fragment_stop_delimited(self.seq)
-        # or a pre-split list of fragments.  If no indicies provided, [0]*n used.
+            self.labels = [None]*len(sequence_data) # NO LABELS. intended for accessory functionality only.
+        # or a pre-split list of fragments WITH LABELS.  If no indicies provided, [0]*n used.
         elif isinstance(sequence_data, list):
             self.fragments = [seq.upper() for seq in sequence_data]
             if list_indices:
@@ -15,7 +17,7 @@ class DNAFeatureExtraction:
             else:    
                 self.frag_index = [0]*len(self.fragments)
         if chunk:
-            self.fragments, self.frag_index = fragment_windowed(zip(self.fragments, self.frag_index))
+            self.fragments, self.frag_index, self.labels = fragment_windowed(zip(self.fragments, self.frag_index, labels))
             
 
     def decode_dna(self, lookup):
@@ -33,13 +35,13 @@ class DNAFeatureExtraction:
                 entry = lookup[seq[i:i+3]]
                 prot += entry['aa']
                 # add'nl properties:
-                pid.append(self.frag_index[j])
+                # pid.append(self.frag_index[j])
                 pref.append(entry['f_aa']/entry['r_aa'])
                 aa_h.append(entry['hydrophob_7'])
                 aa_a.append(entry['aromatic'])
                 aa_c.append(entry['class'])
             self.peptides.append(prot)
-            self.peptide_id.append(pid)
+            # self.peptide_id.append(pid)
             self.codon_pref.append(pref)
             self.aa_hydrophob.append(aa_h)
             self.aa_aromatic.append(aa_a)
@@ -51,10 +53,10 @@ class DNAFeatureExtraction:
         if self.peptides is None:
             print('AttributeError:  Nice try.  You have to decode the DNA first.')
         else:
-            return [list(zip(aa,pref,aah,aaa,aac,pix)) 
-                    for aa,pref,aah,aaa,aac,pix 
+            return [list(zip(aa,pref,aah,aaa,aac)) 
+                    for aa,pref,aah,aaa,aac 
                     in zip(self.peptides,self.codon_pref,self.aa_hydrophob,
-                           self.aa_aromatic,self.aa_class,self.peptide_id)]
+                           self.aa_aromatic,self.aa_class)]
 
 
 # DNAFeatureExtraction accessory function
@@ -96,9 +98,9 @@ def fragment_stop_delimited(seq):
 # DNAFeatureExtraction accessory function
 def fragment_windowed(seqs_idx, window=150, offset=60):
     '''takes list of tuple(aa_sequence,index) and returns lists of windows & updated indicies'''
-    chunked = [(frag[idn:idn+window], idg+idn) for frag,idg in seqs_idx for idn in range((len(frag)-window)%offset, len(frag)-window+1, offset)]
-    windows, wind_index = list(zip(*chunked))
-    return list(windows), list(wind_index)
+    chunked = [(frag[idn:idn+window], idg+idn, lab) for frag,idg,lab in seqs_idx for idn in range((len(frag)-window)%offset, len(frag)-window+1, offset)]
+    windows, wind_index, labels = list(zip(*chunked))
+    return list(windows), list(wind_index), list(labels)
 
 
 import numpy as np

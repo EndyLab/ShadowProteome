@@ -1,3 +1,6 @@
+import sklearn as sk
+import numpy as np
+
 class ArrayFunctionTransformer(sk.base.BaseEstimator, sk.base.TransformerMixin):
     def __init__(self, FUN, target, params=None):
         self.FUN = FUN
