@@ -160,17 +160,19 @@ def zerocross_pack(X): # intended for hydrophob array
     for k in range(1,len(X)):
         if X[k]*X[k-1]<0:
             cross.append(k)
-    t = np.ediff1d(cross)
-    tm = t.mean()
-    tsd = t.std()
-    tp1 = np.percentile(t,5)
-    tp2 = np.percentile(t,95)
-    return np.hstack([len(cross)/len(X),tm,tsd,tp1,tp2])
-
+    if len(cross)>2:
+        t = np.ediff1d(cross)
+        tm = t.mean()
+        tsd = t.std()
+        tp1 = np.percentile(t,5)
+        tp2 = np.percentile(t,95)
+        return np.hstack([len(cross)/len(X),tm,tsd,tp1,tp2])
+    else:
+        return np.hstack([1/len(X),0,0,0,0])
     
-def codon_bias_rms(X, lookup, select='FULL'):
+def codon_bias_rms(X, lookup, AAs, select='FULL'):
     '''Takes a DNA sequence and calculates the RMS[or 0] of codon bias for ALL(1,), [SELECT](1,), or FULL(21,) amino acids'''
-    AAs = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y']
+    # AAs = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y']
     x = [(lookup[X[i:i+3]]['aa'],lookup[X[i:i+3]]['f_aa']-lookup[X[i:i+3]]['r_aa']) for i in range(0,len(X),3)]
     
     if select=='ALL':
@@ -178,7 +180,7 @@ def codon_bias_rms(X, lookup, select='FULL'):
     elif select=='FULL':
         df = pd.DataFrame(x)
         values = df[1].groupby(df[0]).apply(lambda x: (sum(x**2)/len(x))**.5)
-        return np.hstack([(sum([z[1]**2 for z in test])/len(test))**.5, values[AAs].fillna(0)])
+        return np.hstack([(sum([z[1]**2 for z in x])/len(x))**.5, values[AAs].fillna(0)])
     else:
         tmp = [z[1]**2 for z in x if z[0]==select]
         return (sum(tmp)/len(tmp)) if len(tmp)>0 else 0.
@@ -186,10 +188,11 @@ def codon_bias_rms(X, lookup, select='FULL'):
 
 def aa_pack(X, AAs): # distribution of individual amino acids
     '''Takes AA sequences and returns a (100,) np.array of distribution features for all AAs (present or not)'''
+    # AAs = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y']
     L = len(X)
     result = []
     for aa in AAs:
-        aas = [pos for pos,char in enumerate(a) if char==aa]
+        aas = [pos for pos,char in enumerate(X) if char==aa]
         l = len(aas)
         if l>2:
             t = np.ediff1d(aas)
@@ -197,23 +200,36 @@ def aa_pack(X, AAs): # distribution of individual amino acids
             tsd = t.std()
             tp1 = np.percentile(t,5)
             tp2 = np.percentile(t,95)
-            return np.hstack([l/L,tm,tsd,tp1,tp2])
+            result.append([l/L,tm,tsd,tp1,tp2])
         else:
-            return np.hstack([l/L,0,0,0,0])
+            result.append([l/L,0,0,0,0])
+    return np.hstack(result)
+
+
+def class_pack(X):
+    '''Takes list of AA classes and returns a (32,) np.array of distribution features'''
+    classes = ['polar','nonpolar','basic','acidic']
+    result = []
+    for thing in classes:
+        result.append(statpack1(np.array([i for i,x in enumerate(X) if x == thing])))
+    return np.hstack(result)
 
 
 def statpack1(X):
     '''Takes numerical array and returns a (8,) np.array of distribution features'''
-    m = X.mean()
-    sd = X.std()
-    p1 = np.percentile(X,5)
-    p2 = np.percentile(X,95)
-    t = np.ediff1d(X)
-    tm = t.mean()
-    tsd = t.std()
-    tp1 = np.percentile(t,5)
-    tp2 = np.percentile(t,95)
-    return np.hstack([m,sd,p1,p2,tm,tsd,tp1,tp2])
+    if len(X)>1:
+        m = X.mean()
+        sd = X.std()
+        p1 = np.percentile(X,5)
+        p2 = np.percentile(X,95)
+        t = np.ediff1d(X)
+        tm = t.mean()
+        tsd = t.std()
+        tp1 = np.percentile(t,5)
+        tp2 = np.percentile(t,95)
+        return np.hstack([m,sd,p1,p2,tm,tsd,tp1,tp2])
+    else:
+        return np.zeros(8)
 
 
 def statpack2(X):
