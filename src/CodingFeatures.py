@@ -98,7 +98,7 @@ def fragment_stop_delimited(seq):
 # DNAFeatureExtraction accessory function
 def fragment_windowed(seqs_idx, window=150, offset=60):
     '''takes list of tuple(aa_sequence,index) and returns lists of windows & updated indicies'''
-    chunked = [(frag[idn:idn+window], idg+idn, lab) for frag,idg,lab in seqs_idx for idn in range((len(frag)-window)%offset, len(frag)-window+1, offset)]
+    chunked = [(frag[idn:idn+window], (idg,idg+idn), lab) for frag,idg,lab in seqs_idx for idn in range((len(frag)-window)%offset, len(frag)-window+1, offset)]
     windows, wind_index, labels = list(zip(*chunked))
     return list(windows), list(wind_index), list(labels)
 
