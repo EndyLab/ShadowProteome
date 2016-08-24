@@ -8,7 +8,6 @@ class DNAAttributeConstruction:
         if isinstance(sequence_data, str):
             self.seq = sequence_data.upper()
             self.fragments, self.frag_index = fragment_stop_delimited(self.seq)
-            self.labels = [None]*len(sequence_data) # NO LABELS. intended for accessory functionality only.
         # or a pre-split list of fragments WITH LABELS.  If no indicies provided, [0]*n used.
         elif isinstance(sequence_data, list):
             self.fragments = [seq.upper() for seq in sequence_data]
@@ -17,7 +16,8 @@ class DNAAttributeConstruction:
             else:    
                 self.frag_index = [0]*len(self.fragments)
         if chunk:
-            self.fragments, self.frag_index, self.labels = fragment_windowed(zip(self.fragments, self.frag_index, labels))
+            # If seq_data == str, NO LABELS. intended for accessory functionality only.
+            self.fragments, self.frag_index, self.labels = fragment_windowed(zip(self.fragments, self.frag_index, labels if labels is not None else [None]*len(self.fragments)))
             
 
     def decode_dna(self, lookup):
@@ -146,6 +146,19 @@ def codon_lookup(path='../data/CodonUsage_ecoli.csv', extrude_=None):
     # print(codons.head(5))
     lookup = codons.to_dict(orient='index')
     return codons, lookup
+
+
+def seq_merge(seqs):
+    '''Merge list of overlapping strings (de-window).  Assumes pre-ordered list.'''
+    seqs = list(seqs)
+    master = seqs[0]
+    if len(seqs)>1:
+        overlap = 0
+        for x in range(1,len(seqs[1])):
+            if seqs[1][:x] in master:
+                overlap = x
+        master = ''.join([master,''.join(map(lambda x: x[overlap:], seqs[1:]))])
+    return master
 
 
 # accessory function for codon_lookup.  not generally used.
