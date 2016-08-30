@@ -71,7 +71,7 @@ def fragment_stop_delimited(seq):
     idx = {0:0,1:1,2:2} # starting frame indicies
 
     # progressively search for stop codons, increment result vectors by frame
-    i = max(idx.values())
+    i = 0
     while i < len(seq):
         x = re.search(stops_reg, seq[i:]) # find next stop
         if x:
@@ -101,6 +101,11 @@ def fragment_windowed(seqs_idx, window=150, offset=60):
     chunked = [(frag[idn:idn+window], (idg,idg+idn), lab) for frag,idg,lab in seqs_idx for idn in range((len(frag)-window)%offset, len(frag)-window+1, offset)]
     windows, wind_index, labels = list(zip(*chunked))
     return list(windows), list(wind_index), list(labels)
+
+
+def reverse_complement(seq):
+    rc = {'A':'T', 'C':'G', 'G':'C', 'T':'A'}
+    return ''.join([rc[x] for x in seq[::-1]])
 
 
 import numpy as np
